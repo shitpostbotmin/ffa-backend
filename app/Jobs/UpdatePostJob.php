@@ -43,5 +43,7 @@ class UpdatePostJob implements ShouldQueue
         $post->content = $this->content;
 
         $post->save();
+
+        UpdateCacheFilesJob::dispatch();
     }
 }

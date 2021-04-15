@@ -10,21 +10,21 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use App\Models\Post;
 
-class CreatePostJob implements ShouldQueue
+class UpdateCacheFilePageJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    /** @var string */
-    private $content;
+    /** @var int */
+    private $page;
 
     /**
      * Create a new job instance.
      *
      * @return void
      */
-    public function __construct(string $content)
+    public function __construct($page)
     {
-        $this->content = $content;
+        $this->page = $page;
     }
 
     /**
@@ -34,10 +34,13 @@ class CreatePostJob implements ShouldQueue
      */
     public function handle()
     {
-        Post::create([
-            'content' => $this->content,
-        ]);
+        $page = $this->page;
+        $efsMnt = env('EFS_MOUNT_LOCATION');
 
-        UpdateCacheFilesJob::dispatch();
+        $posts = Post::orderBy('id', 'DESC')->offset($page * 10)->limit(10)->get();
+
+        $json = $posts->toJson();
+
+        file_put_contents("$efsMnt/cache_page_$page.json", $json);
     }
 }

@@ -10,21 +10,18 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use App\Models\Post;
 
-class CreatePostJob implements ShouldQueue
+class UpdateCacheFilesJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
-
-    /** @var string */
-    private $content;
 
     /**
      * Create a new job instance.
      *
      * @return void
      */
-    public function __construct(string $content)
+    public function __construct()
     {
-        $this->content = $content;
+        //
     }
 
     /**
@@ -34,10 +31,10 @@ class CreatePostJob implements ShouldQueue
      */
     public function handle()
     {
-        Post::create([
-            'content' => $this->content,
-        ]);
-
-        UpdateCacheFilesJob::dispatch();
+        $count = Post::count();
+        $jobs = ceil($count / 10);
+        for ($i = 0; $i < $jobs; $i++) {
+            UpdateCacheFilePageJob::dispatch($i);
+        }
     }
 }

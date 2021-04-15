@@ -35,5 +35,7 @@ class DeletePostJob implements ShouldQueue
     public function handle()
     {
         Post::destroy($this->id);
+
+        UpdateCacheFilesJob::dispatch();
     }
 }

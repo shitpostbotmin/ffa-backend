@@ -12,6 +12,7 @@ provider:
     EFS_ID: ${ssm:/ffa-backend/EFS_ID}
     APP_KEY: ${ssm:/ffa-backend/APP_KEY}
     APP_ENV: dev
+    EFS_MOUNT_LOCATION: /mnt/efs
   iamRoleStatements:
     - Effect: Allow
       Action: [sqs:SendMessage, sqs:DeleteMessage]
@@ -26,37 +27,33 @@ package:
     - storage/**
     - tests/**
 
+globalFunctionAttributes: &globalFunctionAttributes
+  vpc:
+    securityGroupIds:
+      - ${self:provider.environment.LAMBDA_SG_ID}
+    subnetIds:
+      - ${self:provider.environment.VPC_SUBNET_ID}
+  fileSystemConfig:
+    localMountPath: ${self:provider.environment.EFS_MOUNT_LOCATION}
+    arn: !GetAtt AccessPointResource.Arn
+
 functions:
   # This function runs the Laravel website/API
   web:
+    <<: *globalFunctionAttributes
     handler: public/index.php
     timeout: 28 # in seconds (API Gateway has a timeout of 29 seconds)
     layers:
         - ${bref:layer.php-74-fpm}
-    vpc:
-      securityGroupIds:
-        - ${self:provider.environment.LAMBDA_SG_ID}
-      subnetIds:
-        - ${self:provider.environment.VPC_SUBNET_ID}
-    fileSystemConfig:
-      localMountPath: /mnt/efs
-      arn: !GetAtt AccessPointResource.Arn
     events:
         -   httpApi: '*'
 
   # processes the SQS job queue
   worker:
+    <<: *globalFunctionAttributes
     handler: worker.php
     layers:
       - ${bref:layer.php-74}
-    vpc:
-      securityGroupIds:
-        - ${self:provider.environment.LAMBDA_SG_ID}
-      subnetIds:
-        - ${self:provider.environment.VPC_SUBNET_ID}
-    fileSystemConfig:
-      localMountPath: /mnt/efs
-      arn: !GetAtt AccessPointResource.Arn
     events:
       # Declares that our worker is triggered by jobs in SQS
       - sqs:
@@ -65,19 +62,12 @@ functions:
 
   # This function lets us run artisan commands in Lambda
   artisan:
+    <<: *globalFunctionAttributes
     handler: artisan
     timeout: 120 # in seconds
     layers:
       - ${bref:layer.php-74} # PHP
       - ${bref:layer.console} # The "console" layer
-    vpc:
-      securityGroupIds:
-        - ${self:provider.environment.LAMBDA_SG_ID}
-      subnetIds:
-        - ${self:provider.environment.VPC_SUBNET_ID}
-    fileSystemConfig:
-      localMountPath: /mnt/efs
-      arn: !GetAtt AccessPointResource.Arn
 
 resources:
   Resources:

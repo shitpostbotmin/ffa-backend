@@ -25,7 +25,24 @@ class PostsController extends Controller
 
     public function show(Request $request)
     {
-        return Post::orderBy('id', 'DESC')->paginate(10);
+        $page = $request->input('page', 1);
+        $index = $page - 1;
+
+        $efsMnt = env('EFS_MOUNT_LOCATION');
+        $filename = "$efsMnt/cache_page_$index.json";
+        
+        if (!file_exists($filename)) {
+            return response([
+                'message' => 'Page cachefile not found.',
+            ], 404);
+        }
+
+        $json = file_get_contents($filename);
+        $data = json_decode($json, true);
+
+        return [
+            'data' => $data,
+        ];
     }
 
     public function update(Request $request, int $id)
