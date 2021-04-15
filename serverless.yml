@@ -1,0 +1,106 @@
+service: laravel
+
+provider:
+  name: aws
+  region: ${ssm:/ffa-backend/region}
+  stage: dev
+  runtime: provided.al2
+  environment:
+    LAMBDA_SG_ID: ${ssm:/ffa-backend/LAMBDA_SG_ID}
+    VPC_SUBNET_ID: ${ssm:/ffa-backend/VPC_SUBNET_ID}
+    SQS_QUEUE: !Ref AlertQueue
+    EFS_ID: ${ssm:/ffa-backend/EFS_ID}
+    APP_KEY: ${ssm:/ffa-backend/APP_KEY}
+  iamRoleStatements:
+    - Effect: Allow
+      Action: [sqs:SendMessage, sqs:DeleteMessage]
+      Resource: !GetAtt AlertQueue.Arn
+
+package:
+  # Directories to exclude from deployment
+  exclude:
+    - node_modules/**
+    - public/storage
+    - resources/assets/**
+    - storage/**
+    - tests/**
+
+functions:
+  # This function runs the Laravel website/API
+  web:
+    handler: public/index.php
+    timeout: 28 # in seconds (API Gateway has a timeout of 29 seconds)
+    layers:
+        - ${bref:layer.php-74-fpm}
+    vpc:
+      securityGroupIds:
+        - ${self:provider.environment.LAMBDA_SG_ID}
+      subnetIds:
+        - ${self:provider.environment.VPC_SUBNET_ID}
+    events:
+        -   httpApi: '*'
+
+  # processes the SQS job queue
+  worker:
+    handler: worker.php
+    layers:
+      - ${bref:layer.php-74}
+    vpc:
+      securityGroupIds:
+        - ${self:provider.environment.LAMBDA_SG_ID}
+      subnetIds:
+        - ${self:provider.environment.VPC_SUBNET_ID}
+    events:
+      # Declares that our worker is triggered by jobs in SQS
+      - sqs:
+          arn: !GetAtt AlertQueue.Arn
+          batchSize: 1 # Only 1 item at a time to simplify error handling
+
+  # This function lets us run artisan commands in Lambda
+  artisan:
+    handler: artisan
+    timeout: 120 # in seconds
+    layers:
+      - ${bref:layer.php-74} # PHP
+      - ${bref:layer.console} # The "console" layer
+    vpc:
+      securityGroupIds:
+        - ${self:provider.environment.LAMBDA_SG_ID}
+      subnetIds:
+        - ${self:provider.environment.VPC_SUBNET_ID}
+
+resources:
+  Resources:
+    # EFS Access Point
+    AccessPointResource:
+      Type: 'AWS::EFS::AccessPoint'
+      Properties:
+        FileSystemId: ${self:provider.environment.EFS_ID}
+        PosixUser:
+          Uid: '1000'
+          Gid: '1000'
+        RootDirectory:
+          CreationInfo:
+            OwnerGid: '1000'
+            OwnerUid: '1000'
+            Permissions: '0777'
+          Path: '/efs'
+
+    # The SQS queue
+    AlertQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        RedrivePolicy:
+          maxReceiveCount: 3 # jobs will be retried up to 3 times
+          # Failed jobs (after the retries) will be moved to the other queue for storage
+          deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
+
+    # Failed jobs will go into that SQS queue to be stored, until a developer looks at these errors
+    DeadLetterQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        MessageRetentionPeriod: 1209600 # maximum retention: 14 days
+
+plugins:
+  # We need to include the Bref plugin
+  - ./vendor/bref/bref
