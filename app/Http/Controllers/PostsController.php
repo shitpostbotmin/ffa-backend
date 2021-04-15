@@ -4,16 +4,23 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Post;
-use App\Jobs\CreateOrUpdatePostJob;
+use App\Jobs\UpdatePostJob;
+use App\Jobs\CreatePostJob;
 use App\Jobs\DeletePostJob;
 
 class PostsController extends Controller
 {
     public function create(Request $request)
     {
-        CreateOrUpdatePostJob::dispatch($request->input('content'), null);
+        $request->validate([
+            'content' => 'required|max:255|min:1',
+        ]);
 
-        return true;
+        CreatePostJob::dispatch($request->input('content'), null);
+
+        return [
+            'message' => 'Dispatched',
+        ];
     }
 
     public function show(Request $request)
@@ -23,15 +30,23 @@ class PostsController extends Controller
 
     public function update(Request $request, int $id)
     {
-        CreateOrUpdatePostJob::dispatch($request->input('content'), $id);
+        $request->validate([
+            'content' => 'required|max:255|min:1',
+        ]);
 
-        return true;
+        UpdatePostJob::dispatch($request->input('content'), $id);
+
+        return [
+            'message' => 'Dispatched',
+        ];
     }
 
     public function destroy(Request $request, int $id)
     {
         DeletePostJob::dispatch($id);
 
-        return true;
+        return [
+            'message' => 'Dispatched',
+        ];
     }
 }

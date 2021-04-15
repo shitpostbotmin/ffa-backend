@@ -10,25 +10,21 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use App\Models\Post;
 
-class CreateOrUpdatePostJob implements ShouldQueue
+class CreatePostJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /** @var string */
     private $content;
 
-    /** @var ?int */
-    private $id;
-
     /**
      * Create a new job instance.
      *
      * @return void
      */
-    public function __construct(string $content, ?int $id)
+    public function __construct(string $content)
     {
         $this->content = $content;
-        $this->id = $id;
     }
 
     /**
@@ -38,14 +34,8 @@ class CreateOrUpdatePostJob implements ShouldQueue
      */
     public function handle()
     {
-        if (is_null($this->id)) {
-            Post::create([
-                'content' => $this->content,
-            ]);
-        } else {
-            $post = Post::find($this->id);
-            $post->content = $this->content;
-            $post->save();
-        }
+        Post::create([
+            'content' => $this->content,
+        ]);
     }
 }

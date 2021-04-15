@@ -22,3 +22,9 @@ Route::get('/posts', 'App\Http\Controllers\PostsController@show');
 Route::post('/posts', 'App\Http\Controllers\PostsController@create');
 Route::put('/posts/{id}', 'App\Http\Controllers\PostsController@update');
 Route::delete('/posts/{id}', 'App\Http\Controllers\PostsController@destroy');
+
+Route::fallback(function(){
+    return response()->json([
+        'message' => 'Endpoint not found.',
+    ], 404);
+});
