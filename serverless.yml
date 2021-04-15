@@ -2,7 +2,7 @@ service: laravel
 
 provider:
   name: aws
-  region: ${ssm:/ffa-backend/region}
+  region: us-east-1
   stage: dev
   runtime: provided.al2
   environment:
@@ -11,6 +11,7 @@ provider:
     SQS_QUEUE: !Ref AlertQueue
     EFS_ID: ${ssm:/ffa-backend/EFS_ID}
     APP_KEY: ${ssm:/ffa-backend/APP_KEY}
+    APP_ENV: dev
   iamRoleStatements:
     - Effect: Allow
       Action: [sqs:SendMessage, sqs:DeleteMessage]
@@ -37,6 +38,9 @@ functions:
         - ${self:provider.environment.LAMBDA_SG_ID}
       subnetIds:
         - ${self:provider.environment.VPC_SUBNET_ID}
+    fileSystemConfig:
+      localMountPath: /mnt/efs
+      arn: !GetAtt AccessPointResource.Arn
     events:
         -   httpApi: '*'
 
@@ -50,6 +54,9 @@ functions:
         - ${self:provider.environment.LAMBDA_SG_ID}
       subnetIds:
         - ${self:provider.environment.VPC_SUBNET_ID}
+    fileSystemConfig:
+      localMountPath: /mnt/efs
+      arn: !GetAtt AccessPointResource.Arn
     events:
       # Declares that our worker is triggered by jobs in SQS
       - sqs:
@@ -68,6 +75,9 @@ functions:
         - ${self:provider.environment.LAMBDA_SG_ID}
       subnetIds:
         - ${self:provider.environment.VPC_SUBNET_ID}
+    fileSystemConfig:
+      localMountPath: /mnt/efs
+      arn: !GetAtt AccessPointResource.Arn
 
 resources:
   Resources:
